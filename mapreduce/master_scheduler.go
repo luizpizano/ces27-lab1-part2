@@ -20,13 +20,18 @@ func (master *Master) schedule(task *Task, proc string, filePathChan chan string
 		counter   int
 	)
 
+	master.number_of_files = 0
+	master.number_of_successful_operations = 0
 	log.Printf("Scheduling %v operations\n", proc)
-
+	master.filesToProcessChan = make(chan string, FILES_TO_PROCESS_BUFFER)
+	for filePath = range filePathChan{
+		master.filesToProcessChan <- filePath
+		master.number_of_files++	
+	}
 	counter = 0
-	for filePath = range filePathChan {
+	for filePath = range master.filesToProcessChan {
 		operation = &Operation{proc, counter, filePath}
 		counter++
-
 		worker = <-master.idleWorkerChan
 		wg.Add(1)
 		go master.runOperation(worker, operation, &wg)
@@ -58,8 +63,17 @@ func (master *Master) runOperation(remoteWorker *RemoteWorker, operation *Operat
 		log.Printf("Operation %v '%v' Failed. Error: %v\n", operation.proc, operation.id, err)
 		wg.Done()
 		master.failedWorkerChan <- remoteWorker
+		master.filesMutex.Lock()
+		master.filesToProcessChan <- operation.filePath
+		master.filesMutex.Unlock()
 	} else {
+		master.idleWorkersMutex.Lock()
 		wg.Done()
 		master.idleWorkerChan <- remoteWorker
+		master.number_of_successful_operations++
+		if master.number_of_files == master.number_of_successful_operations {
+			close(master.filesToProcessChan)
+		}
+		master.idleWorkersMutex.Unlock()
 	}
 }

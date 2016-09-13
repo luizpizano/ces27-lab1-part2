@@ -10,6 +10,7 @@ import (
 const (
 	IDLE_WORKER_BUFFER     = 100
 	RETRY_OPERATION_BUFFER = 100
+	FILES_TO_PROCESS_BUFFER = 100
 )
 
 type Master struct {
@@ -33,6 +34,12 @@ type Master struct {
 	// ADD EXTRA PROPERTIES HERE //
 	///////////////////////////////
 	// Fault Tolerance
+	filesToProcessChan chan string
+	idleWorkersMutex sync.Mutex
+	filesMutex sync.Mutex
+	number_of_successful_operations int
+	number_of_files int
+
 }
 
 type Operation struct {
@@ -80,6 +87,14 @@ func (master *Master) handleFailingWorkers() {
 	/////////////////////////
 	// YOUR CODE GOES HERE //
 	/////////////////////////
+	for failedWorker:= range master.failedWorkerChan {
+		master.workersMutex.Lock()
+
+	    delete(master.workers,failedWorker.id)
+	    master.totalWorkers--
+	    log.Printf("Removing worker %v from master list.", failedWorker.id)
+	    master.workersMutex.Unlock()
+	}
 }
 
 // Handle a single connection until it's done, then closes it.
